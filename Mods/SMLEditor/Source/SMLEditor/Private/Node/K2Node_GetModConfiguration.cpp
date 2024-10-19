@@ -24,9 +24,9 @@ void UK2Node_GetModConfiguration::GetMenuActions(FBlueprintActionDatabaseRegistr
 		UK2Node_GetModConfiguration* TypedNode = CastChecked<UK2Node_GetModConfiguration>(Node);
 		TypedNode->ModConfigurationClass = ConfigurationClass;
 	};
-	
+
 	// Do a first time registration using the node's class to pull in all existing config classes
-	if (ActionRegistrar.IsOpenForRegistration(GetClass())) {		
+	if (ActionRegistrar.IsOpenForRegistration(GetClass())) {
 		//Query asset registry for a list of valid native configuration classes
 		TArray<UClass*> ValidConfigurationClasses;
 		RetrieveAllConfigurationClasses(ValidConfigurationClasses);
@@ -64,7 +64,7 @@ void UK2Node_GetModConfiguration::AllocateDefaultPins() {
 	//Allocate Exec input/outputs pins for this node
 	CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Execute);
 	CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Then);
-	
+
 	if (GetBlueprint()->ParentClass->HasMetaData(FBlueprintMetadata::MD_ShowWorldContextPin)) {
 		CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Object, UObject::StaticClass(), GetModConfiguration_WorldContextPinName);
 	}
@@ -87,17 +87,17 @@ void UK2Node_GetModConfiguration::ExpandNode(FKismetCompilerContext& CompilerCon
 	UEdGraphPin* InputWorldContext = FindPin(GetModConfiguration_WorldContextPinName, EGPD_Input);
 	UEdGraphPin* OutputThenExecPin = FindPinChecked(UEdGraphSchema_K2::PN_Then, EGPD_Output);
 	UEdGraphPin* StructOutputPin = GetOutputConfigStructPin();
-	
+
 	if (StructOutputPin == NULL) {
-		CompilerContext.MessageLog.Error(*LOCTEXT("InvalidConfigClass", "Node @@ does not reference a valid configuration struct").ToString(), this);
+		CompilerContext.MessageLog.Error(*LOCTEXT("InvalidConfigStruct", "Node @@ does not reference a valid configuration struct").ToString(), this);
 		return;
 	}
-	
+
 	//Allocate node for obtaining engine subsystem of UConfigManager
 	UK2Node_CallFunction* GetConfigManagerNode = SourceGraph->CreateIntermediateNode<UK2Node_CallFunction>();
 	const FName GetEngineSubsystemFuncName = GET_FUNCTION_NAME_CHECKED(USubsystemBlueprintLibrary, GetGameInstanceSubsystem);
 	GetConfigManagerNode->FunctionReference.SetExternalMember(GetEngineSubsystemFuncName, USubsystemBlueprintLibrary::StaticClass());
-	
+
 	GetConfigManagerNode->PostPlacedNewNode();
 	GetConfigManagerNode->AllocateDefaultPins();
 	CompilerContext.MessageLog.NotifyIntermediateObjectCreation(GetConfigManagerNode, this);
@@ -110,14 +110,14 @@ void UK2Node_GetModConfiguration::ExpandNode(FKismetCompilerContext& CompilerCon
 	if (InputWorldContext) {
 		CompilerContext.MovePinLinksToIntermediate(*InputWorldContext, *CallCreateWorldContextPin);
 	}
-	
+
 	//Set engine subsystem class for the GetGameInstanceSubsystem method call
 	CallCreateClassTypePin->DefaultObject = UConfigManager::StaticClass();
-	
+
 	//Allocate node for making config id struct literal
 	UK2Node_MakeStruct* MakeConfigId = SourceGraph->CreateIntermediateNode<UK2Node_MakeStruct>();
 	MakeConfigId->StructType = FConfigId::StaticStruct();
-	
+
 	MakeConfigId->PostPlacedNewNode();
 	MakeConfigId->AllocateDefaultPins();
 	CompilerContext.MessageLog.NotifyIntermediateObjectCreation(MakeConfigId, this);
@@ -132,25 +132,25 @@ void UK2Node_GetModConfiguration::ExpandNode(FKismetCompilerContext& CompilerCon
 		CompilerContext.MessageLog.Error(*LOCTEXT("InvalidConfigClass", "Node @@ does not reference a valid configuration class").ToString(), this);
 		return;
 	}
-	
+
 	ConfigIdModReferencePin->DefaultValue = ModConfigurationCDO->ConfigId.ModReference;
 	ConfigIdCategoryPin->DefaultValue = ModConfigurationCDO->ConfigId.ConfigCategory;
 
 	//Create node for storing struct result in a temporary variable
 	UK2Node_TemporaryVariable* TemporaryVariableNode = SourceGraph->CreateIntermediateNode<UK2Node_TemporaryVariable>();
 	TemporaryVariableNode->VariableType = StructOutputPin->PinType;
-	
+
 	TemporaryVariableNode->PostPlacedNewNode();
 	TemporaryVariableNode->AllocateDefaultPins();
 	CompilerContext.MessageLog.NotifyIntermediateObjectCreation(TemporaryVariableNode, this);
-	
+
 	UEdGraphPin* TemporaryVariablePin = TemporaryVariableNode->GetVariablePin();
 
 	//Create node for filling configuration struct with actual data
 	UK2Node_CallFunction* FillConfigurationStructNode = SourceGraph->CreateIntermediateNode<UK2Node_CallFunction>();
 	const FName FillConfigStructFuncName = GET_FUNCTION_NAME_CHECKED(UConfigManager, FillConfigurationStruct);
 	FillConfigurationStructNode->FunctionReference.SetExternalMember(FillConfigStructFuncName, UConfigManager::StaticClass());
-	
+
 	FillConfigurationStructNode->PostPlacedNewNode();
 	FillConfigurationStructNode->AllocateDefaultPins();
 	CompilerContext.MessageLog.NotifyIntermediateObjectCreation(FillConfigurationStructNode, this);
@@ -163,7 +163,7 @@ void UK2Node_GetModConfiguration::ExpandNode(FKismetCompilerContext& CompilerCon
 	//Connect ConfigId input pin with the MakeStruct node output we obtained above
 	UEdGraphPin* ConfigIdInputPin = FillConfigurationStructNode->FindPinChecked(TEXT("ConfigId"), EGPD_Input);
 	ConfigIdOutputPin->MakeLinkTo(ConfigIdInputPin);
-	
+
 	//Connect StructInfo input pin with the temporary variable pin we obtained above
 	UEdGraphPin* StructInfoInputPin = FillConfigurationStructNode->FindPinChecked(TEXT("StructInfo"), EGPD_Input);
 	StructInfoInputPin->PinType = TemporaryVariablePin->PinType;
@@ -173,11 +173,11 @@ void UK2Node_GetModConfiguration::ExpandNode(FKismetCompilerContext& CompilerCon
 	//Move output pins from the current node to the temporary variable node, and move exec pins to FillConfigurationStruct node pins
 	UEdGraphPin* FillConfigStructInputExecPin = FillConfigurationStructNode->FindPinChecked(UEdGraphSchema_K2::PN_Execute, EGPD_Input);
 	UEdGraphPin* FillConfigStructOutputThenPin = FillConfigurationStructNode->FindPinChecked(UEdGraphSchema_K2::PN_Then, EGPD_Output);
-	
+
 	CompilerContext.MovePinLinksToIntermediate(*StructOutputPin, *TemporaryVariablePin);
 	CompilerContext.MovePinLinksToIntermediate(*InputExecPin, *FillConfigStructInputExecPin);
 	CompilerContext.MovePinLinksToIntermediate(*OutputThenExecPin, *FillConfigStructOutputThenPin);
-	
+
 	// Break all links to this node so it will be removed as unconnected
 	BreakAllNodeLinks();
 }
@@ -200,7 +200,7 @@ UScriptStruct* UK2Node_GetModConfiguration::ResolveConfigurationStruct(UClass* C
 	if (ConfigClass == NULL) {
 		return NULL;
 	}
-	
+
 	//Skip class if it's not generated by the blueprint
 	UBlueprint* OwningBlueprint = Cast<UBlueprint>(ConfigClass->ClassGeneratedBy);
 	if (OwningBlueprint == NULL) {
@@ -209,7 +209,7 @@ UScriptStruct* UK2Node_GetModConfiguration::ResolveConfigurationStruct(UClass* C
 
 	const FString BlueprintName = OwningBlueprint->GetName();
 	const FString RootConfigStructName = FString::Printf(TEXT("%sStruct"), *BlueprintName);
-	
+
 	//First try to resolve native struct with the same name in any package owned by the same plugin
 	FString PluginName = UBlueprintAssetHelperLibrary::FindPluginNameByObjectPath(OwningBlueprint->GetPathName(), false);
 	IPluginManager& PluginManager = IPluginManager::Get();
@@ -228,7 +228,7 @@ UScriptStruct* UK2Node_GetModConfiguration::ResolveConfigurationStruct(UClass* C
 	//Otherwise try to resolve blueprint struct in the same package as the blueprint
 	const FString BlueprintPackageName = OwningBlueprint->GetOutermost()->GetName();
 	const FString BasePackagePath = FPackageName::GetLongPackagePath(BlueprintPackageName);
-	
+
 	const FString BlueprintStructPackageName = UPackageTools::SanitizePackageName(BasePackagePath + TEXT("/") + RootConfigStructName);
 	if (UPackage* StructPackage = LoadPackage(NULL, *BlueprintStructPackageName, LOAD_Quiet)) {
 		if (UUserDefinedStruct* UserDefinedStruct = FindObject<UUserDefinedStruct>(StructPackage, *RootConfigStructName)) {
@@ -262,7 +262,7 @@ void UK2Node_GetModConfiguration::RetrieveAllConfigurationClasses(TArray<UClass*
 	TArray<UClass*> DerivedConfigClasses;
 	GetDerivedClasses(UModConfiguration::StaticClass(), DerivedConfigClasses);
 	DerivedConfigClasses.Add(UModConfiguration::StaticClass());
-	
+
 	TArray<FString> PossibleTagValues;
 	for (UClass* ConfigClass : DerivedConfigClasses) {
 		if (Cast<UBlueprintGeneratedClass>(ConfigClass) == NULL) {

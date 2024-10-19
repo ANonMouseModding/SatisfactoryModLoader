@@ -14,10 +14,10 @@ bool FNativeCodeGenerator::GenerateConfigStructForConfigurationAsset(UBlueprint*
     if (!FUserDefinedStructCodeGenerator::CreateConfigStructContextForConfigurationAsset(Blueprint, GenerationContext)) {
         return false;
     }
-    
+
     const FString BlueprintName = Blueprint->GetName();
     const FString BaseStructName = FString::Printf(TEXT("%sStruct"), *BlueprintName);
-    
+
     FString OutFailureMessage;
     if (!CanGenerateNativeConfiguration(GenerationContext, OutFailureMessage)) {
         FMessageDialog::Open(EAppMsgType::Ok, FText::Format(LOCTEXT("CannotGenerateNativeConfig",
@@ -56,7 +56,7 @@ bool FNativeCodeGenerator::GenerateConfigStructForConfigurationAsset(UBlueprint*
     const FString ResultHeaderFilename = SaveFilenames[0];
     FStringOutputDevice StringOutputDevice;
     StringOutputDevice.SetAutoEmitLineTerminator(true);
-    
+
     const FString CleanHeaderFilename = FPaths::GetBaseFilename(ResultHeaderFilename);
     GenerateConfigurationCodeHeader(CleanHeaderFilename, Blueprint, GenerationContext, StringOutputDevice);
 
@@ -64,8 +64,8 @@ bool FNativeCodeGenerator::GenerateConfigStructForConfigurationAsset(UBlueprint*
         FMessageDialog::Open(EAppMsgType::Ok, FText::Format(LOCTEXT("FailedToOpenFile", "Failed to save header file at path '{0}'"), FText::FromString(ResultHeaderFilename)));
         return false;
     }
-    
-    FUserDefinedStructCodeGenerator::ShowSuccessNotification(FText::Format(LOCTEXT("BlueprintConfigStructRegenerated",
+
+    FUserDefinedStructCodeGenerator::ShowSuccessNotification(FText::Format(LOCTEXT("BlueprintConfigNatStructRegenerated",
                "Successfully generated Native Struct for Configuration '{0}' and saved them at '{1}'"),
                FText::FromString(Blueprint->GetName()), FText::FromString(ResultHeaderFilename)));
     return true;
@@ -79,7 +79,7 @@ bool FNativeCodeGenerator::CanGenerateNativeConfiguration(UConfigGenerationConte
             OutFailureMessage = FString::Printf(TEXT("Generated Struct Name '%s' does not represent a valid C++ identifier. Make sure it contains only alphanumerical characters and does not start with a digit"), *StructName);
             return false;
         }
-        
+
         for (const TPair<FString, FConfigVariableDescriptor>& Pair : GeneratedStruct->GetVariables()) {
             const FConfigVariableDescriptor Descriptor = Pair.Value;
             const EConfigVariableType VariableType = Descriptor.GetVariableType();
@@ -89,7 +89,7 @@ bool FNativeCodeGenerator::CanGenerateNativeConfiguration(UConfigGenerationConte
                     "Make sure it contains only alphanumerical characters and does not start with a digit"), *Pair.Key, *StructName);
                 return false;
             }
-            
+
             if (VariableType == EConfigVariableType::ECVT_CustomStruct) {
                 UScriptStruct* ScriptStruct = Descriptor.GetCustomStructType();
                 if (Cast<UUserDefinedStruct>(ScriptStruct) != NULL) {
@@ -99,7 +99,7 @@ bool FNativeCodeGenerator::CanGenerateNativeConfiguration(UConfigGenerationConte
                     return false;
                 }
             }
-            
+
             if (VariableType == EConfigVariableType::ECVT_Object) {
                 UClass* BaseObjectClass = Descriptor.GetBaseObjectClass();
                 if (BaseObjectClass != NULL && !BaseObjectClass->IsNative()) {
@@ -109,7 +109,7 @@ bool FNativeCodeGenerator::CanGenerateNativeConfiguration(UConfigGenerationConte
                     return false;
                 }
             }
-            
+
             if (VariableType == EConfigVariableType::ECVT_Class) {
                 UClass* BaseClassType = Descriptor.GetBaseClassType();
                 if (BaseClassType != NULL && !BaseClassType->IsNative()) {
@@ -121,7 +121,7 @@ bool FNativeCodeGenerator::CanGenerateNativeConfiguration(UConfigGenerationConte
             }
         }
     }
-    
+
     OutFailureMessage = TEXT("");
     return true;
 }
@@ -130,7 +130,7 @@ void FNativeCodeGenerator::GenerateConfigurationCodeHeader(const FString& Header
     //Populate referenced classes data required for generating includes
     FReferencedClassesData ReferencedClasses;
     PopulateReferencedClasses(Context, ReferencedClasses);
-    
+
     //Generate includes and pre-declarations first
     GenerateIncludesAndPredeclarations(HeaderFileName, ReferencedClasses, OutputDevice);
 
@@ -141,7 +141,7 @@ void FNativeCodeGenerator::GenerateConfigurationCodeHeader(const FString& Header
         const int32 NestedCountSecond = GetNestedLevelOfStruct(&Second);
         return NestedCountFirst > NestedCountSecond;
     });
-    
+
     //Generate each struct now
     for (UConfigGeneratedStruct* GeneratedStruct : GeneratedStructs) {
         GenerateConfigStruct(GeneratedStruct, SourceBlueprint, OutputDevice);
@@ -161,15 +161,15 @@ void FNativeCodeGenerator::GenerateConfigStruct(UConfigGeneratedStruct* Struct, 
         const FString BlueprintAssetPath = SourceBlueprint->GetOutermost()->GetName();
         OutputDevice.Logf(TEXT("/* Struct generated from Mod Configuration Asset '%s' */"), *BlueprintAssetPath);
     }
-    
+
     //Open struct body, mark it as USTRUCT accessible in blueprints
     OutputDevice.Log(TEXT("USTRUCT(BlueprintType)"));
     OutputDevice.Logf(TEXT("struct F%s {"), *Struct->GetStructName());
     OutputDevice.Log(TEXT("    GENERATED_BODY()"));
     OutputDevice.Log(TEXT("public:"));
-    
+
     bool bIsFirstField = true;
-    
+
     //Generate each variable now
     for (const TPair<FString, FConfigVariableDescriptor>& Pair : Struct->GetVariables()) {
         //Append empty line between properties unless it's a first property
@@ -178,7 +178,7 @@ void FNativeCodeGenerator::GenerateConfigStruct(UConfigGeneratedStruct* Struct, 
         } else {
             bIsFirstField = false;
         }
-        
+
         //Determine C++ type for passed descriptor
         const FString CppTypeForDescriptor = GenerateCppTypeForVariable(Pair.Value);
         //Mark variable as BlueprintReadWrite for it to be accessible via BP limited reflection
@@ -190,7 +190,7 @@ void FNativeCodeGenerator::GenerateConfigStruct(UConfigGeneratedStruct* Struct, 
     if (bIsRootStruct && SourceBlueprint->GeneratedClass) {
         UModConfiguration* ModConfiguration = CastChecked<UModConfiguration>(SourceBlueprint->GeneratedClass.GetDefaultObject());
         const FConfigId& ConfigId = ModConfiguration->ConfigId;
-        
+
         OutputDevice.Log(TEXT(""));
         OutputDevice.Logf(TEXT("    /* Retrieves active configuration value and returns object of this struct containing it */"));
         OutputDevice.Logf(TEXT("    static F%s GetActiveConfig(UObject* WorldContext) {"), *Struct->GetStructName());
@@ -288,7 +288,7 @@ void FNativeCodeGenerator::GenerateIncludesAndPredeclarations(const FString& Hea
     //Include ConfigManager and GEngine for retrieving it
     OutputDevice.Log(TEXT("#include \"Configuration/ConfigManager.h\""));
     OutputDevice.Log(TEXT("#include \"Engine/Engine.h\""));
-    
+
     //Generated include should always be the last include in the file
     OutputDevice.Logf(TEXT("#include \"%s.generated.h\""), *HeaderFileName);
 
